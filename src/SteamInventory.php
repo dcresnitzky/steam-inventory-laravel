@@ -34,6 +34,8 @@ class SteamInventory
      */
     protected $currentData;
 
+    protected $steamId;
+
     /**
      * @param string $cache Instantiate the Object
      */
@@ -51,6 +53,7 @@ class SteamInventory
      */
     public function loadInventory($steamId, $appId = 730, $contextId = 2)
     {
+        $this->steamId = $steamId;
         if ($this->cache->tags($this->cacheTag)->has($steamId)) {
             $this->currentData = $this->cache->tags($this->cacheTag)->get($steamId);
             // Return the cached data
@@ -114,17 +117,16 @@ class SteamInventory
     /**
      * Returns the current Inventory data
      *
-     * @return Collection
+     * @return array
      */
     public function getInventory()
     {
         if (! $this->currentData) {
             return false;
         }
-
         $data = array_get($this->currentData, 'rgInventory');
-
-        return $this->collection->make($data);
+        //return $this->collection->make($data);
+        return $data;
     }
 
     /**
@@ -137,11 +139,9 @@ class SteamInventory
         if (! $this->currentData) {
             return false;
         }
-
         $data = array_get($this->currentData, 'rgDescriptions', false);
         $data = $this->collection->make($data);
         // dd($data);
-
         $items = $this->parseItemDescriptions($data);
 
         return $items;
@@ -163,22 +163,36 @@ class SteamInventory
             return $items;
         }
 
+        $inventory = $this->getInventory();
+
         foreach ($data as $dataItem) {
             // Ignore untradable items
-            if (array_get($dataItem, 'tradable') !== 1 || array_get($dataItem, 'instanceid') == 0) {
+            if (array_get($dataItem, 'tradable') !== 1 || array_get($dataItem, 'instanceid') == 0)
                 continue;
-            }
 
-            $name = trim(last(explode('|', array_get($dataItem, 'name'))));
+            $instanceId = array_get($dataItem, 'instanceid');
+            $classId = array_get($dataItem, 'classid');
+            $assetId = 0;
+            foreach($inventory as $key=>$inv){
+                if ( $inv['instanceid'] == $instanceId && $inv['classid'] == $classId){
+                    $assetId = $key;
+                    break;
+                }
+            }
+            unset($inventory[$assetId]);
+
+            //$name = trim(last(explode('|', array_get($dataItem, 'name'))));
             $desc = $this->parseItemDescription(array_get($dataItem, 'descriptions'));
             $tags = $this->parseItemTags(array_get($dataItem, 'tags'));
             $cat  = array_get($tags, 'Category', '');
 
             $array = [
                     'appid'           => array_get($dataItem, 'appid'),            // 730
-                    'classid'         => array_get($dataItem, 'classid'),          // 310777928
-                    'instanceid'      => array_get($dataItem, 'instanceid'),       // 480085569 or 0
-                    'name'            => $name,                                     // Sand Dune
+                    'assetid'         => $assetId,
+                    'classid'         => $classId,          // 310777928
+                    'instanceid'      => $instanceId,       // 480085569 or 0
+                    //'name'            => $name,                                     // Sand Dune
+                    'name'            => array_get($dataItem, 'name'),               // Sand Dune
                     'market_name'     => array_get($dataItem, 'market_name'),      // P250 | Sand Dune (Field-Tested)
                     'weapon'          => array_get($tags, 'Weapon'),                // P250
                     'type'            => array_get($tags, 'Type'),                  // Pistol
@@ -190,11 +204,12 @@ class SteamInventory
                     'icon_url_large'  => array_get($dataItem, 'icon_url_large'),   // fWFc82js0fmoRAP-qOIPu5THSWqfSmTEL ...
                     'description'     => $desc,
                     'name_color'      => '#' . array_get($dataItem, 'name_color'),
+                    'inspect_link'      => $this->getInspectLink(array_get($dataItem, 'actions'),$assetId),
                 ];
 
             $items->push(json_decode(json_encode($array)));
 
-            unset($desc, $tags, $cat, $array);
+            unset($instanceId, $classId, $instanceId, $assetId, $desc, $tags, $cat, $array);
         }
 
         return $items;
@@ -214,11 +229,11 @@ class SteamInventory
     }
 
     /**
-     * Parses an item's tags into a usable array
-     *
-     * @param  array  $tags
-     * @return array
-     */
+ * Parses an item's tags into a usable array
+ *
+ * @param  array  $tags
+ * @return array
+ */
     protected function parseItemTags(array $tags)
     {
         if (! count($tags)) {
@@ -236,8 +251,19 @@ class SteamInventory
 
         return $parsed;
     }
-
-
+    /**
+     * Parses an item's actions into a usable array
+     *
+     * @param  array  $actions
+     * @return string
+     */
+    protected function getInspectLink(array $actions, $assetId)
+    {
+        if (! count($actions)) {
+            return null;
+        }
+        return str_replace('%assetid%',$assetId,(str_replace('%owner_steamid%',$this->steamId, $actions[0]['link'])));
+    }
 
     /*
     |--------------------------------------------------------------------------
