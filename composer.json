@@ -1,5 +1,5 @@
 {
-    "name": "dcresnitzky/steam-inventory-laravel",
+    "name": "braseidon/steam-inventory-laravel",
     "description": "SteamInventory is a wrapper around the JSON Steam API that grabs a user's items - all packaged up for Laravel.",
     "type": "library",
     "keywords": ["steam", "api", "inventory", "wrapper", "json", "steamid", "php", "laravel"],
@@ -21,7 +21,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Dcresnitzky\\SteamInventory\\": "src/"
+            "Braseidon\\SteamInventory\\": "src/"
         }
     },
     "extra": {
