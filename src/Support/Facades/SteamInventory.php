@@ -12,6 +12,6 @@ class SteamInventory extends Facade
     */
     protected static function getFacadeAccessor()
     {
-        return 'braseidon.steam-inventory';
+        return 'dcresnitzky.steam-inventory';
     }
 }
