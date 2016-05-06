@@ -19,15 +19,16 @@ class SteamInventory
      */
     protected $collection;
 
-    /**
-     * @var integer $cacheTime Number of minutes to cache a Steam ID's inventory
-     */
-    protected $cacheTime = 30;
 
     /**
-     * @var string $cacheTag The Cache tag that will be used for all items
+     * @var string $cacheInventoryTag The Cache tag that will be used for all items
      */
-    protected $cacheTag = 'steam.inventory';
+    protected $cacheInventoryTag = 'steam.inventory';
+
+    /**
+     * @var string $cacheMarketTag The Cache tag that will be used for all items
+     */
+    protected $cacheMarketTag = 'steam.market';
 
     /**
      * @var mixed The last inventory that was pulled
@@ -35,6 +36,8 @@ class SteamInventory
     protected $currentData;
 
     protected $steamId;
+
+    protected $marketUrl = 'http://steamcommunity.com/market/priceoverview/?currency=1&appid=730&market_hash_name=';
 
     /**
      * @param string $cache Instantiate the Object
@@ -54,8 +57,8 @@ class SteamInventory
     public function loadInventory($steamId, $appId = 730, $contextId = 2)
     {
         $this->steamId = $steamId;
-        if ($this->cache->tags($this->cacheTag)->has($steamId)) {
-            $this->currentData = $this->cache->tags($this->cacheTag)->get($steamId);
+        if ($this->cache->tags($this->cacheInventoryTag)->has($steamId)) {
+            $this->currentData = $this->cache->tags($this->cacheInventoryTag)->get($steamId);
             // Return the cached data
             return $this;
         }
@@ -64,7 +67,7 @@ class SteamInventory
 
         if (is_array($inventory)) {
             $minutes = Config::get('braseidon.steam-inventory.cache_time');
-            $this->cache->tags($this->cacheTag)->put($steamId, $inventory, $minutes);
+            $this->cache->tags($this->cacheInventoryTag)->put($steamId, $inventory, $minutes);
 
             $this->currentData = $inventory;
         } else {
@@ -106,6 +109,7 @@ class SteamInventory
         return 'http://steamcommunity.com/profiles/' . $steamId . '/inventory/json/' . $appId . '/' . $contextId . '/';
     }
 
+
     /*
     |--------------------------------------------------------------------------
     | Returning Data
@@ -113,7 +117,6 @@ class SteamInventory
     |
     |
     */
-
     /**
      * Returns the current Inventory data
      *
@@ -145,6 +148,26 @@ class SteamInventory
         $items = $this->parseItemDescriptions($data);
 
         return $items;
+    }
+
+    public function getItemPriceByName($marketName)
+    {
+        if ($this->cache->tags($this->cacheMarketTag)->has($marketName)) {
+            return $this->cache->tags($this->cacheMarketTag)->get($marketName);
+        }
+
+        $url = $this->marketUrl.urlencode($marketName);
+        $result = @file_get_contents($url);
+        if (!$result)
+            return json_decode('error:true');
+
+        $price = json_decode($result, true);
+
+        if (is_array($price) && $price['success']) {
+            $this->cache->tags($this->cacheMarketTag)->put($marketName, $price, 1);
+        }
+
+        return $price;
     }
 
     /*
@@ -257,9 +280,9 @@ class SteamInventory
      * @param  array  $actions
      * @return string
      */
-    protected function getInspectLink(array $actions, $assetId)
+    protected function getInspectLink( $actions, $assetId)
     {
-        if (! count($actions)) {
+        if ($actions == null && !count($actions)) {
             return null;
         }
         return str_replace('%assetid%',$assetId,(str_replace('%owner_steamid%',$this->steamId, $actions[0]['link'])));
