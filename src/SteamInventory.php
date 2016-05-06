@@ -3,8 +3,9 @@
 use Config;
 use Illuminate\Cache\CacheManager;
 use Illuminate\Support\Collection;
-
+use GuzzleHttp\Client;
 use InvalidArgumentException;
+use GuzzleHttp\Exception\RequestException;
 
 class SteamInventory
 {
@@ -37,7 +38,6 @@ class SteamInventory
 
     protected $steamId;
 
-    protected $marketUrl = 'http://steamcommunity.com/market/priceoverview/?currency=1&appid=730&market_hash_name=';
 
     /**
      * @param string $cache Instantiate the Object
@@ -150,18 +150,22 @@ class SteamInventory
         return $items;
     }
 
+
     public function getItemPriceByName($marketName)
     {
         if ($this->cache->tags($this->cacheMarketTag)->has($marketName)) {
             return $this->cache->tags($this->cacheMarketTag)->get($marketName);
         }
-
-        $url = $this->marketUrl.urlencode($marketName);
-        $result = @file_get_contents($url);
-        if (!$result)
-            return json_decode('error:true');
-
-        $price = json_decode($result, true);
+        //$result = file_get_contents($url);
+        $client = new Client([
+            'timeout'  => 2.0,
+        ]);
+        try {
+            $response = $client->request('GET', 'http://steamcommunity.com/market/priceoverview/?currency=1&appid=730&market_hash_name=' . urlencode($marketName));
+        }catch (\Exception $e){
+            return response()->json(['message'=>'Erro'],$e->getCode());
+        }
+        $price = json_decode($response->getBody(), true);
 
         if (is_array($price) && $price['success']) {
             $this->cache->tags($this->cacheMarketTag)->put($marketName, $price, 1);
